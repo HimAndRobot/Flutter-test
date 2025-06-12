@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fortunity_app/src/features/auth/widgets/header_percent.dart';
 import 'package:fortunity_app/src/features/auth/widgets/regist_user/email_page.dart';
 import 'package:fortunity_app/src/features/auth/widgets/regist_user/token_page.dart';
@@ -8,107 +9,73 @@ import 'package:fortunity_app/src/features/auth/widgets/regist_user/name_page.da
 import 'package:fortunity_app/src/features/auth/widgets/regist_user/rg_page.dart';
 import 'package:fortunity_app/src/features/auth/widgets/regist_user/password_page.dart';
 import 'package:fortunity_app/src/shared/widgets/custom_button.dart';
-import 'package:fortunity_app/src/features/auth/handlers/token_step_handler.dart';
-import 'package:fortunity_app/src/features/auth/handlers/step_handler.dart';
+import 'package:fortunity_app/src/features/auth/notifiers/register_user_notifier.dart';
 
-class RegisterUserScreen extends StatefulWidget {
+class RegisterUserScreen extends ConsumerStatefulWidget {
   const RegisterUserScreen({super.key});
 
   @override
-  State<RegisterUserScreen> createState() => _RegisterUserScreenState();
+  ConsumerState<RegisterUserScreen> createState() => _RegisterUserScreenState();
 }
 
-class _RegisterUserScreenState extends State<RegisterUserScreen> {
+class _RegisterUserScreenState extends ConsumerState<RegisterUserScreen> {
   final PageController _pageController = PageController();
-  final _tokenKey = GlobalKey<FormState>();
 
-  late final Map<int, StepHandler> _stepHandlers = {
-    1: TokenStepHandler(_tokenKey, _formData),
-  };
-
-  late final List<Widget> _steps = [
-    const EmailPage(),
-    TokenPage(formKey: _tokenKey, onTokenSaved: (token) {
-      setState(() {
-        _formData['token'] = token;
-      });
-    }),
-    const PhonePage(),
-    const PhoneTokenPage(),
-    const NamePage(),
-    const RgPage(),
-    const PasswordPage(),
+  final List<Widget> _steps = const [
+    EmailPage(),
+    TokenPage(),
+    PhonePage(),
+    PhoneTokenPage(),
+    NamePage(),
+    RgPage(),
+    PasswordPage(),
   ];
-  
-  final Map<String, dynamic> _formData = {
-    'token': '',
-  };
-  int _currentStep = 0;
-  bool _isLoading = false;
-  final List<String> _messages = [
-    'E-mail para acesso',
-    'Confirme o token enviado para o seu e-mail',
-    'Informe o seu telefone',
-    'Confirme o token enviado para o seu telefone',
-    'Informe o seu nome',
-    'Informe o seu RG',
-    'Informe a sua senha',
-  ];
-
 
   void _nextStep() async {
-    if (_currentStep < _steps.length - 1) {
-      if (_stepHandlers.containsKey(_currentStep)) {
-        final handler = _stepHandlers[_currentStep]!;
-        setState(() {
-          _isLoading = true;
-        });
-        final success = await handler.process(); // ← Faz validação + API
-        setState(() {
-          _isLoading = false;
-        });
-        if (success) {
-          _pageController.nextPage(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-            );
-        }
-      } else {
-        _pageController.nextPage(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-          );
-      }
-    }
+    print('nextStep');
+    await ref.read(registerUserProvider.notifier).processNextStep();
   }
 
   void _previousStep() {
-    if (_currentStep > 0) {
-      _pageController.previousPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    }
+    ref.read(registerUserProvider.notifier).previousStep();
   }
 
   @override
   Widget build(BuildContext context) {
+    final state = ref.watch(registerUserProvider);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_pageController.hasClients && 
+          _pageController.page?.round() != state.currentStep) {
+        _pageController.animateToPage(
+          state.currentStep,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
+    });
+
+    ref.listen(registerUserProvider, (previous, next) {
+      if (next.errorMessage != null) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(next.errorMessage!), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating, duration: const Duration(seconds: 2),),
+        );
+      }
+    });
+
     return Scaffold(
       body: Column(
         children: [
           HeaderPercent(
             title: 'Cadastro de usuário',
-            message: _messages[_currentStep],
-            percent: (_currentStep + 1) / _steps.length,
+            message: state.currentMessage,
+            percent: state.progress,
           ),
           Expanded(
             child: PageView.builder(
               controller: _pageController,
-              onPageChanged: (index) {
-                setState(() {
-                  _currentStep = index;
-                });
-              },
+              physics: const NeverScrollableScrollPhysics(),
               itemCount: _steps.length,
               itemBuilder: (context, index) {
                 return Padding(
@@ -118,30 +85,53 @@ class _RegisterUserScreenState extends State<RegisterUserScreen> {
               },
             ),
           ),
+          //  if (state.errorMessage != null)
+          //   Container(
+          //     margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          //     padding: const EdgeInsets.all(12),
+          //     decoration: BoxDecoration(
+          //       color: Colors.red.shade50,
+          //       borderRadius: BorderRadius.circular(8),
+          //       border: Border.all(color: Colors.red.shade200),
+          //     ),
+          //     child: Row(
+          //       children: [
+          //         Icon(Icons.error_outline, color: Colors.red.shade600, size: 20),
+          //         const SizedBox(width: 8),
+          //         Expanded(
+          //           child: Text(
+          //             state.errorMessage!,
+          //             style: TextStyle(color: Colors.red.shade700, fontSize: 14),
+          //           ),
+          //         ),
+          //       ],
+          //     ),
+          //   ),
           Padding(
             padding: const EdgeInsets.only(left: 48, right: 24, bottom: 34),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                if (_currentStep > 0)
+                if (!state.isFirstStep)
                   TextButton(
-                    onPressed: _previousStep,
+                    onPressed: state.isLoading ? null : _previousStep,
                     child: const Text('Voltar'),
                   )
                 else
                   const SizedBox.shrink(),
-                if (_currentStep < _steps.length - 1)
+                if (!state.isLastStep)
                   CustomButton(
-                    isLoading: _isLoading,
+                    isLoading: state.isLoading,
                     onPressed: _nextStep,
                     icon: Icons.arrow_forward,
                     text: 'Próximo',
                   )
                 else
                   CustomButton(
-                    onPressed: () {},
+                    isLoading: state.isLoading,
+                    onPressed: _nextStep,
                     text: 'Finalizar',
-                    icon: Icons.arrow_forward,
+                    icon: Icons.check,
                   )
               ],
             ),

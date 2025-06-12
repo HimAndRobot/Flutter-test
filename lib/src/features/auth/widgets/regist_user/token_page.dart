@@ -1,48 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fortunity_app/src/shared/widgets/custom_token.dart';
+import '../../providers/form_providers.dart';
+import '../../notifiers/register_user_notifier.dart';
 
-class TokenPage extends ConsumerStatefulWidget {
-  const TokenPage({super.key, required this.formKey, required this.onTokenSaved});
-  final GlobalKey<FormState> formKey;
-  final Function(String) onTokenSaved;
-
-  @override
-  ConsumerState<TokenPage> createState() => _TokenPageState();
-}
-
-class _TokenPageState extends ConsumerState<TokenPage> {
+class TokenPage extends ConsumerWidget {
+  const TokenPage({super.key});
 
   String? _validateToken(String? value) {
     if (value == null || value.length != 6) {
-      return 'Token must be 6 digits';
+      return 'The token must be 6 digits';
     }
     return null;
   }
 
-  Future<void> _handleSubmit() async {
-    if (widget.formKey.currentState!.validate()) {
-      widget.formKey.currentState!.save();
-    }
-  }
-
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Form(
-        key: widget.formKey,
-        child: Column(
-          children: [
-            CustomToken(
-              label: 'Token', 
-              onCodeChanged: (code) {},
-              validator: _validateToken,
-                onSaved: (newValue) {
-                 widget.onTokenSaved(newValue ?? '');
-               },
-            ),
-          ],
-        ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final formKey = ref.watch(tokenFormProvider);
+    
+    return Form(
+      key: formKey,
+      child: Column(
+        children: [
+          CustomToken(
+            label: 'Token', 
+            onCodeChanged: (code) {
+              // Opcional: atualizar em tempo real
+              // ref.read(registerUserProvider.notifier).updateFormField(token: code);
+            },
+            validator: _validateToken,
+            onSaved: (newValue) {
+              ref.read(registerUserProvider.notifier).updateFormField(
+                token: newValue ?? '',
+              );
+            },
+          ),
+        ],
       ),
     );
   }
